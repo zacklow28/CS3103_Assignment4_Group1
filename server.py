@@ -504,6 +504,7 @@ class ReceiverApplication:
 
         # Close API connection
         await self.api.close()
+        await asyncio.sleep(0.1)
 
         logger.info("\n" + "=" * 100)
         logger.info("Receiver stopped successfully")
