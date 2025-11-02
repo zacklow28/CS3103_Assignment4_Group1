@@ -56,7 +56,7 @@ class ChannelMetrics:
     jitter_samples: List[float] = field(default_factory=list)
     last_rtt: Optional[float] = None
     start_time: Optional[float] = None
-    last_seq: int = -1
+    last_seq: int = 0
 
     def add_rtt(self, rtt_ms: float):
         """Add RTT sample and calculate jitter (RFC 3550)"""
@@ -577,7 +577,7 @@ class ReceiverApplication:
                 # Calculate PDR (assuming we sent same number as received for demo)
                 # In production, sender would send this information
                 pdr = (
-                    (metrics.packets_received / metrics.last_seq * 100)
+                    (metrics.packets_received / (metrics.last_seq + 1) * 100)
                     if metrics.packets_delivered > 0
                     else 0
                 )
