@@ -577,7 +577,7 @@ class ReceiverApplication:
                 # Calculate PDR (assuming we sent same number as received for demo)
                 # In production, sender would send this information
                 pdr = (
-                    (metrics.packets_received / metrics.packets_delivered * 100)
+                    (metrics.packets_received / metrics.last_seq * 100)
                     if metrics.packets_delivered > 0
                     else 0
                 )
