@@ -1,7 +1,5 @@
 import asyncio
 import random
-import sys
-import platform
 from GameNetAPI import GameNetAPI
 
 def generate_game_data():
@@ -19,39 +17,9 @@ def generate_game_data():
         "location": location
     }
 
-async def wait_for_keypress(stop_event):
-    """Wait for user to press 'q' key to stop the client."""
-    print("Press 'q' to stop...\n")
-    if platform.system() == "Windows":
-        import msvcrt
-        while not stop_event.is_set():
-            if msvcrt.kbhit():
-                key = msvcrt.getch()
-                if key.lower() == b'q':
-                    stop_event.set()
-                    break
-            await asyncio.sleep(0.05)
-    else:
-        import termios
-        import tty
-        import select
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            while not stop_event.is_set():
-                if select.select([sys.stdin], [], [], 0.1)[0]:
-                    key = sys.stdin.read(1)
-                    if key.lower() == 'q':
-                        stop_event.set()
-                        break
-                await asyncio.sleep(0.05)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-async def send_task(stop_event, api):
-    """Continuously send game data packets to the server."""
-    while not stop_event.is_set():
+async def send_data(api):
+    """Send 100 game data packets to the server."""
+    for i in range(100):
         # add reliable or unreliable tag randomly
         reliable = random.choice([True, False])
         data = generate_game_data()
@@ -59,7 +27,6 @@ async def send_task(stop_event, api):
         await asyncio.sleep(0.05)
 
 async def main():
-    stop_event = asyncio.Event()
     api = GameNetAPI()
 
     async def handle_message(data, reliable):
@@ -69,12 +36,7 @@ async def main():
     api.set_message_callback(handle_message)
     await api.connect()
 
-    # Run both tasks concurrently
-    await asyncio.gather(
-        wait_for_keypress(stop_event),
-        send_task(stop_event, api),
-        return_exceptions=True
-    )
+    await send_data(api)
 
     await api.close()
     await asyncio.sleep(0.1)
