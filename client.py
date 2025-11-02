@@ -77,6 +77,7 @@ async def main():
     )
 
     await api.close()
+    await asyncio.sleep(0.1)
 
 
 if __name__ == "__main__":
