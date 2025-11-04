@@ -20,7 +20,8 @@ class GameServerProtocol(QuicConnectionProtocol):
         self.expected_seq = 0               # next expected reliable seq
         self.next_ack_seq = 0               # seq for server -> client packets
         self.on_message = on_message        # callback for received messages
-
+        self.reliable_seq_largest = 0
+        self.unreliable_seq_largest = 0
         # Metrics
         self.metrics = {
             RELIABLE: {
@@ -78,9 +79,11 @@ class GameServerProtocol(QuicConnectionProtocol):
         # Update metrics
         if reliable:
             self.reliable_buffer[seq_no] = (data, timestamp)
+            self.reliable_seq_largest = max(self.reliable_seq_largest, seq_no)
             await self._deliver_reliable()
             self._update_metrics(channel, len(packet), timestamp)
         else:
+            self.unreliable_seq_largest = max(self.unreliable_seq_largest, seq_no)
             await self._deliver_packet(data, reliable=False, seq_no=seq_no, timestamp=timestamp)
             self._update_metrics(channel, len(packet), timestamp)
 
@@ -96,7 +99,7 @@ class GameServerProtocol(QuicConnectionProtocol):
               f"Seq {seq_no} | Timestamp {timestamp} | RTT {rtt} ms | Data: {data}")
 
         self.metrics[RELIABLE if reliable else UNRELIABLE]["last_rtt"] = rtt
-        
+
         # Send an ACK back to the client
         # We create a task so we don't block the delivery pipeline
         response_payload = {
@@ -166,19 +169,25 @@ class GameServerProtocol(QuicConnectionProtocol):
             if ch_metrics["packets_received"] == 0:
                 print(f"[{name}] No packets received yet.")
                 continue
-            
+
             duration = max(time.time() - ch_metrics["start_time"], 1e-6)
             throughput = ch_metrics["bytes_received"] / duration
 
-            pdr = (ch_metrics["packets_received"] / (ch_metrics["last_proper_seq"] + 1)) * 100
+            #pdr = (ch_metrics["packets_received"] / (ch_metrics["last_proper_seq"] + 1)) * 100
+            if channel is RELIABLE:
+                pdr = (ch_metrics["packets_received"] / (self.reliable_seq_largest + 1)) * 100
+            else:
+                pdr = (ch_metrics["packets_received"] / (self.unreliable_seq_largest + 1)) * 100
+
 
             last_rtt = ch_metrics["last_rtt"]
             avg_jitter = sum(ch_metrics["jitter_samples"]) / len(ch_metrics["jitter_samples"]) if ch_metrics["jitter_samples"] else 0
-            
+
             print(
                 f"[{name} Metrics] "
                 f"Packets Received: {ch_metrics['packets_received']}, "
-                f"Last Proper Sequence Number: {ch_metrics['last_proper_seq']}, "
+                f"Largest Seen Sequence Number: {self.reliable_seq_largest if channel is RELIABLE else self.unreliable_seq_largest}"
+                #f"Last Proper Sequence Number: {ch_metrics['last_proper_seq']}, "
                 f"Throughput: {throughput:.2f} Bps, "
                 f"PDR: {pdr:.2f}%, "
                 f"Last RTT: {last_rtt} ms, "
