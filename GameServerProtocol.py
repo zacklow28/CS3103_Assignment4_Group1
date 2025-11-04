@@ -76,13 +76,13 @@ class GameServerProtocol(QuicConnectionProtocol):
             return
 
         # Update metrics
-        self._update_metrics(channel, len(packet), timestamp)
-
         if reliable:
             self.reliable_buffer[seq_no] = (data, timestamp)
             await self._deliver_reliable()
+            self._update_metrics(channel, len(packet), timestamp)
         else:
             await self._deliver_packet(data, reliable=False, seq_no=seq_no, timestamp=timestamp)
+            self._update_metrics(channel, len(packet), timestamp)
 
     async def _deliver_reliable(self):
         while self.expected_seq in self.reliable_buffer:
@@ -105,11 +105,8 @@ class GameServerProtocol(QuicConnectionProtocol):
         }
         asyncio.create_task(self.send_packet(response_payload, reliable=reliable))
 
-        if reliable:
-            self.metrics[RELIABLE]["last_proper_seq"] = seq_no
-        else:
-            # update only if seq_no is higher than previous highest, may be out of order
-            self.metrics[UNRELIABLE]["last_proper_seq"] = max(self.metrics[UNRELIABLE]["last_proper_seq"], seq_no)
+        # update only if seq_no is higher than previous highest, may be out of order
+        self.metrics[UNRELIABLE]["last_proper_seq"] = max(self.metrics[UNRELIABLE]["last_proper_seq"], seq_no)
 
         if self.on_message:
             formatted_data = {
