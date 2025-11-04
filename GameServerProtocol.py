@@ -56,6 +56,7 @@ class GameServerProtocol(QuicConnectionProtocol):
             asyncio.create_task(self._handle_packet(event.data, reliable=False))
         elif isinstance(event, ConnectionTerminated):
             print("Connection terminated by client")
+            self.print_statistics()
 
     # -------------------- Packet Handling --------------------
     async def _handle_packet(self, packet: bytes, reliable: bool):
