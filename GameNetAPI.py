@@ -150,21 +150,25 @@ class GameNetAPI:
         """
         self.on_message = callback
 
-    async def start_server(self):
+    async def start_server(self, create_protocol=None):
         """Start the QUIC server and wait for connections"""
         if self.is_client:
             raise RuntimeError("Server mode requires isClient=False")
 
         print(f"Starting QUIC server on {self.host}:{self.port} ...")
 
-        # Create protocol with our message callback
+        # If no wrapper provided, use default
+        if create_protocol is None:
+            from GameServerProtocol import GameServerProtocol
+            create_protocol = lambda *args, **kwargs: GameServerProtocol(
+                *args, on_message=self.on_message, **kwargs
+            )
+
         await serve(
             host=self.host,
             port=self.port,
             configuration=self.config,
-            create_protocol=lambda *args, **kwargs: GameServerProtocol(
-                *args, on_message=self.on_message, **kwargs
-            ),
+            create_protocol=create_protocol,
         )
 
         print("Server running")
