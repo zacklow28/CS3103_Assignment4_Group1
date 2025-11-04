@@ -25,7 +25,7 @@ class GameServerProtocol(QuicConnectionProtocol):
         self.metrics = {
             RELIABLE: {
                 "packets_received": 0,
-                "packets_sent": 0,
+                "last_proper_seq": 0,
                 "last_rtt": None,
                 "rtt_samples": [],
                 "jitter_samples": [],
@@ -34,7 +34,7 @@ class GameServerProtocol(QuicConnectionProtocol):
             },
             UNRELIABLE: {
                 "packets_received": 0,
-                "packets_sent": 0,
+                "last_proper_seq": 0,
                 "last_rtt": None,
                 "rtt_samples": [],
                 "jitter_samples": [],
@@ -67,8 +67,8 @@ class GameServerProtocol(QuicConnectionProtocol):
 
         channel = packet[0]
         seq_no = int.from_bytes(packet[1:3], "big")
-        timestamp = int.from_bytes(packet[3:3+TIMESTAMP_BYTES], "big")
-        payload_bytes = packet[3+TIMESTAMP_BYTES:]
+        timestamp = int.from_bytes(packet[3:3 + TIMESTAMP_BYTES], "big")
+        payload_bytes = packet[3 + TIMESTAMP_BYTES:]
 
         try:
             data = json.loads(payload_bytes.decode())
@@ -106,6 +106,12 @@ class GameServerProtocol(QuicConnectionProtocol):
         }
         asyncio.create_task(self.send_packet(response_payload, reliable=reliable))
 
+        if reliable:
+            self.metrics[RELIABLE]["last_proper_seq"] = seq_no
+        else:
+            # update only if seq_no is higher than previous highest, may be out of order
+            self.metrics[UNRELIABLE]["last_proper_seq"] = max(self.metrics[UNRELIABLE]["last_proper_seq"], seq_no)
+
         if self.on_message:
             formatted_data = {
                 "seq_no": seq_no,
@@ -135,7 +141,6 @@ class GameServerProtocol(QuicConnectionProtocol):
             self._quic.send_datagram_frame(packet)
 
         self.transmit()
-        self.metrics[RELIABLE if reliable else UNRELIABLE]["packets_sent"] += 1
         print(f"[SERVER-SEND] Seq {seq_no} | Reliable={reliable} | Data: {data}")
 
     # -------------------- Metrics --------------------
@@ -156,23 +161,27 @@ class GameServerProtocol(QuicConnectionProtocol):
             ch_metrics["jitter_samples"].append(abs(rtt - last_rtt))
 
     def print_statistics(self):
+
+        print("\nOVERALL STATISTICS:")
         for channel, name in [(RELIABLE, "RELIABLE"), (UNRELIABLE, "UNRELIABLE")]:
             ch_metrics = self.metrics[channel]
+
             if ch_metrics["packets_received"] == 0:
                 print(f"[{name}] No packets received yet.")
                 continue
+            
             duration = max(time.time() - ch_metrics["start_time"], 1e-6)
             throughput = ch_metrics["bytes_received"] / duration
-            pdr = (
-                ch_metrics["packets_received"] / ch_metrics["packets_sent"] * 100
-                if ch_metrics["packets_sent"] > 0 else 100.0
-            )
+
+            pdr = (ch_metrics["packets_received"] / (ch_metrics["last_proper_seq"] + 1)) * 100
+
             last_rtt = ch_metrics["last_rtt"]
             avg_jitter = sum(ch_metrics["jitter_samples"]) / len(ch_metrics["jitter_samples"]) if ch_metrics["jitter_samples"] else 0
+            
             print(
                 f"[{name} Metrics] "
                 f"Packets Received: {ch_metrics['packets_received']}, "
-                f"Packets Sent: {ch_metrics['packets_sent']}, "
+                f"Last Proper Sequence Number: {ch_metrics['last_proper_seq']}, "
                 f"Throughput: {throughput:.2f} Bps, "
                 f"PDR: {pdr:.2f}%, "
                 f"Last RTT: {last_rtt} ms, "
