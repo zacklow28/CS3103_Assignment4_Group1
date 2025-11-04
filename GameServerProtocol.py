@@ -98,6 +98,7 @@ class GameServerProtocol(QuicConnectionProtocol):
         self.metrics[RELIABLE if reliable else UNRELIABLE]["last_rtt"] = rtt
 
         # update only if seq_no is higher than previous highest, may be out of order
+        self.metrics[RELIABLE]["last_proper_seq"] = max(self.metrics[RELIABLE]["last_proper_seq"], seq_no)
         self.metrics[UNRELIABLE]["last_proper_seq"] = max(self.metrics[UNRELIABLE]["last_proper_seq"], seq_no)
 
         if self.on_message:
