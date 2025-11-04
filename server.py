@@ -10,7 +10,8 @@ async def on_message(data, reliable, proto):
     - reliable: True if packet is RELIABLE
     - proto: GameServerProtocol instance
     """
-    print(f"[SERVER CALLBACK] {data}")
+    ### acknowledge receipt by sending back an ACK with next expected seq_no
+    await proto.send_packet({"ACK": data["seq_no"] + 1} | data["payload"], reliable=reliable)
 
 # -------------------- Main --------------------
 async def main():
@@ -51,4 +52,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        print("\nServer stopped by user")
