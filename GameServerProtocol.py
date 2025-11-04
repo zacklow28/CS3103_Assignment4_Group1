@@ -96,6 +96,14 @@ class GameServerProtocol(QuicConnectionProtocol):
               f"Seq {seq_no} | Timestamp {timestamp} | RTT {rtt} ms | Data: {data}")
 
         self.metrics[RELIABLE if reliable else UNRELIABLE]["last_rtt"] = rtt
+        
+        # Send an ACK back to the client
+        # We create a task so we don't block the delivery pipeline
+        response_payload = {
+            "ack": "received",
+            "seq_echo": seq_no
+        }
+        asyncio.create_task(self.send_packet(response_payload, reliable=reliable))
 
         if self.on_message:
             formatted_data = {
