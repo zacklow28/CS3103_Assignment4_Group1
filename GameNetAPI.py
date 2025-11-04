@@ -8,6 +8,7 @@ from aioquic.quic.events import StreamDataReceived, DatagramFrameReceived
 from aioquic.asyncio.protocol import QuicConnectionProtocol
 
 from GameServerProtocol import GameServerProtocol
+from generate_cert import ensure_certificates
 
 RELIABLE = 1
 UNRELIABLE = 0
@@ -102,6 +103,7 @@ class GameNetAPI:
         self.connected = False
         self.on_message = None  # callback for received messages
         if not isClient:
+            certfile, keyfile = ensure_certificates(certfile, keyfile)
             self.config.load_cert_chain(certfile=certfile, keyfile=keyfile)
         # enable datagram support
         if hasattr(self.config, "max_datagram_frame_size"):
