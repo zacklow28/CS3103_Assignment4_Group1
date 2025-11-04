@@ -71,10 +71,10 @@ def generate_self_signed_cert(certfile="cert.pem", keyfile="key.pem", force=Fals
         ).serial_number(
             x509.random_serial_number()
         ).not_valid_before(
-            datetime.timezone.utc()
+            datetime.now(datetime.timezone.utc)
         ).not_valid_after(
             # Valid for 365 days
-            datetime.timezone.utc() + timedelta(days=365)
+            datetime.now(datetime.timezone.utc) + timedelta(days=365)
         ).add_extension(
             # Add Subject Alternative Names for localhost
             x509.SubjectAlternativeName([
@@ -108,9 +108,11 @@ def generate_self_signed_cert(certfile="cert.pem", keyfile="key.pem", force=Fals
         print(f"✅ Successfully generated certificates!")
         print(f"   Certificate: {certfile}")
         print(f"   Private Key: {keyfile}")
-        print(f"   Valid from:  {datetime.timezone.utc().strftime('%Y-%m-%d %H:%M:%S')} UTC")
-        print(f"   Valid until: {(datetime.timezone.utc() + timedelta(days=365)).strftime('%Y-%m-%d %H:%M:%S')} UTC")
-
+        now_utc = datetime.now(datetime.timezone.utc) # <-- Get current time
+        expiry_utc = now_utc + timedelta(days=365)     # <-- Calculate expiry
+        print(f"   Valid from:  {now_utc.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        print(f"   Valid until: {expiry_utc.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+       
         return certfile, keyfile
         
     except ImportError as e:
@@ -145,8 +147,8 @@ def check_cert_expiry(certfile, warn_days=30):
         with open(certfile, "rb") as f:
             cert = x509.load_pem_x509_certificate(f.read(), default_backend())
         
-        expiry = cert.not_valid_after
-        days_until_expiry = (expiry - datetime.timezone.utc()).days
+        expiry = cert.not_valid_after_utc
+        days_until_expiry = (expiry - datetime.now(datetime.timezone.utc)).days
         
         if days_until_expiry < 0:
             print(f"⚠️  WARNING: Certificate expired {abs(days_until_expiry)} days ago!")
