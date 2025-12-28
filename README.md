@@ -11,3 +11,4 @@ As aioquic requires a TLS certificate for server mode, generate a self-signed ce
 example command: 
 openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 365 -subj "/CN=localhost"
 
+View the statistics here: https://zacklow28.github.io/CS3103_Assignment4_Group1/Network_Channels_Dashboard.html
